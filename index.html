@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>whereto.ai</title>
+    <style>
+        body {
+            font-family: 'Helvetica', sans-serif;
+            background-color: #ffe4c4; /* Light orange background */
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #ff5722; /* Orange color */
+            position: relative; /* Added for positioning the start over button */
+        }
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            margin: 0;
+        }
+        h1 {
+            font-weight: bold;
+            font-size: 42px;
+            margin-bottom: 15px;
+            color: #ff8c42; /* Title color - darker orange */
+        }
+        p.question {
+            font-size: 34px;
+            color: #ff7f50; /* Slightly lighter orange */
+            margin-bottom: 10px;
+        }
+        p.hint {
+            font-size: 28px;
+            color: #ffa07a; /* Lightest orange for hints */
+            margin-bottom: 25px;
+        }
+        input, button, select {
+            font-size: 32px;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: white;
+            border: 2px solid #ff5722;
+            border-radius: 5px;
+            color: #ff5722;
+            width: 80%;
+        }
+        button {
+            cursor: pointer;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 80%;
+            height: 4px;
+            background: #ff5722;
+            margin: 10px 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            background: #ff5722;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 25px;
+            height: 25px;
+            background: #ff5722;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            margin: 0 auto;
+            font-size: 28px;
+        }
+        .loading {
+            display: none;
+            font-size: 28px;
+            color: #ff7f50;
+            margin-top: 20px;
+            animation: loadingAnimation 1s infinite; /* Animation for loading */
+        }
+        .start-over {
+            position: absolute; /* Absolute positioning for the button */
+            top: 20px; /* Distance from the top */
+            right: 20px; /* Distance from the right */
+            font-size: 18px; /* Smaller font size */
+            padding: 5px 10px; /* Smaller padding */
+        }
+
+        @keyframes loadingAnimation {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="page1">
+    <h1>whereto.ai</h1>
+    <p class="question">Where do you want to visit?</p>
+    <p class="hint">a city, a state, a country...</p>
+    <input type="text" id="destination" placeholder="Enter destination" onkeydown="detectEnter(event, 2)">
+</div>
+
+<div class="container" id="page2" style="display:none;">
+    <p class="question">Where does your journey start?</p>
+    <input type="text" id="startLocation" placeholder="Starting location" onkeydown="detectEnter(event, 3)">
+    <br>
+    <p class="question">Is this a one-way or round trip?</p>
+    <button onclick="selectTripType('oneway')">One Way</button>
+    <button onclick="selectTripType('roundtrip')">Round Trip</button>
+</div>
+
+<div class="container" id="page3" style="display:none;">
+    <p class="question">When are you traveling?</p>
+    <p class="hint">Select start and end dates.</p>
+    <input type="date" id="startDate" onkeydown="preventEnter(event)">
+    <input type="date" id="endDate" onkeydown="preventEnter(event)" onchange="nextPage(4)"> <!-- Enter key support removed to avoid calendar call -->
+</div>
+
+<div class="container" id="page4" style="display:none;">
+    <p class="question">What experience are you looking for?</p>
+    <p class="hint">Leisure, Adventure, History, Sports...</p>
+    <input type="text" id="purpose" placeholder="Travel purpose" onkeydown="detectEnter(event, 5)">
+</div>
+
+<div class="container" id="page5" style="display:none;">
+    <p class="question">Customize your trip</p>
+    <p class="hint">Select your travel pace.</p>
+    <div class="legend">
+        <span>Very Slow</span>
+        <span>Very Fast</span>
+    </div>
+    <input type="range" min="1" max="4" step="1" class="slider" id="pace" oninput="updatePaceText()">
+    <p id="paceText">Pace: Slow</p> <!-- Default value set to "Slow" -->
+    <button onclick="generateItinerary()">Generate Itinerary</button> <!-- New button to generate itinerary -->
+    <input type="hidden" onkeydown="detectEnter(event, 6)"> <!-- Hidden input to allow Enter key to work on this page -->
+</div>
+
+<div class="container" id="page6" style="display:none;">
+    <p class="loading">Generating...</p> <!-- Loading animation -->
+    <button class="start-over" onclick="startOver()">Start Over</button> <!-- Start Over button -->
+</div>
+
+<script>
+    let tripSelected = false;
+
+    function detectEnter(event, pageNumber) {
+        if (event.key === 'Enter') {
+            if (pageNumber === 3 && tripSelected === false) {
+                // Prevent page from advancing without selecting trip type on page 2
+                return;
+            }
+            nextPage(pageNumber);
+        }
+    }
+
+    function preventEnter(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent the default "Enter" key behavior in the date input field
+        }
+    }
+
+    function nextPage(pageNumber) {
+        document.querySelectorAll('.container').forEach(page => page.style.display = 'none');
+        document.getElementById(`page${pageNumber}`).style.display = 'block';
+        if (pageNumber === 6) {
+            displayLoading(); // Display loading animation on the last page
+        }
+    }
+
+    function selectTripType(type) {
+        tripSelected = true;
+        nextPage(3); // Automatically advance after selecting trip type
+    }
+
+    function updatePaceText() {
+        const pace = document.getElementById("pace").value;
+        let paceText = "";
+        switch (pace) {
+            case "1":
+                paceText = "Very Slow";
+                break;
+            case "2":
+                paceText = "Slow";
+                break;
+            case "3":
+                paceText = "Fast";
+                break;
+            case "4":
+                paceText = "Very Fast";
+                break;
+        }
+        document.getElementById("paceText").innerText = `Pace: ${paceText}`;
+    }
+
+    function generateItinerary() {
+        document.querySelector(".loading").style.display = "block"; // Show loading message
+        document.querySelector(".start-over").style.display = "none"; // Hide start over button
+        
+        // Simulate a loading time for generating the itinerary
+        setTimeout(() => {
+            nextPage(6); // Go to the loading page after a delay
+        }, 2000); // 2 seconds for demo purpose
+    }
+
+    function displayLoading() {
+        document.querySelector(".loading").style.display = "block"; // Display loading text
+        document.querySelector(".start-over").style.display = "block"; // Show start over button
+    }
+
+    function startOver() {
+        document.querySelectorAll('.container').forEach(page => page.style.display = 'none');
+        document.getElementById('page1').style.display = 'block'; // Reset to the first page
+        resetInputs();
+    }
+
+    function resetInputs() {
+        document.getElementById("destination").value = "";
+        document.getElementById("startLocation").value = "";
+        document.getElementById("startDate").value = "";
+        document.getElementById("endDate").value = "";
+        document.getElementById("purpose").value = "";
+        document.getElementById("pace").value = "2"; // Reset to default pace
+        updatePaceText(); // Update pace text
+        tripSelected = false; // Reset trip selection
+    }
+</script>
+
+</body>
+</html>
